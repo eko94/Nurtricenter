@@ -2,9 +2,25 @@
 
 # Custom post-deployment script for Laravel
 
-# Asegurar permisos correctos para Laravel
+echo "Configurando permisos para Laravel..."
+
+# Asegurar que los directorios existan
+mkdir -p /var/www/html/storage/logs
+mkdir -p /var/www/html/storage/framework/cache
+mkdir -p /var/www/html/storage/framework/sessions
+mkdir -p /var/www/html/storage/framework/views
+mkdir -p /var/www/html/bootstrap/cache
+
+# Configurar permisos correctos ANTES de cualquier operación de Laravel
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Asegurar que el archivo de log sea escribible
+touch /var/www/html/storage/logs/laravel.log
+chown www-data:www-data /var/www/html/storage/logs/laravel.log
+chmod 664 /var/www/html/storage/logs/laravel.log
+
+echo "Permisos configurados correctamente"
 
 # Copy the .env.example to .env
 cp /var/www/html/.env.example /var/www/html/.env
@@ -21,7 +37,6 @@ crontab /etc/cron.d/publish-events
 
 # Iniciar cron
 service cron start
-
 
 # Iniciar Apache en segundo plano
 apache2-foreground &
