@@ -30,4 +30,4 @@ apache2-foreground &
 /usr/local/bin/process-events.sh > /var/log/events-processor.log 2>&1 &
 
 # Mantener el contenedor en ejecución
-tail -f /var/log/apache2/error.log
+tail -f /var/log/apache2/error.log 
