@@ -1,0 +1,225 @@
+services:
+  api-gateway:
+    container_name: api-gateway
+    image: eko1394/api-gateway:1.0.0
+    ports:
+      - 8090:8080
+    depends_on:
+      - identity
+    networks:
+      - nurtricenter-net
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/swagger"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  identity:
+    container_name: identity
+    image: eko1394/identity:1.0.0
+    ports:
+      - 8085:8080
+    depends_on:
+      - identity-db
+      - hashicorp-consul
+    networks:
+      - nurtricenter-net
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/swagger"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  identity-db:
+    container_name: identity-db
+    image: eko1394/identity-db:1.0.0
+    ports:
+      - 1435:1433
+    volumes:
+      - identity-db-data:/var/opt/mssql
+    networks:
+      - nurtricenter-net
+    restart: on-failure
+    environment:
+      SA_PASSWORD: "${SA_PASSWORD}"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/opt/mssql-tools/bin/sqlcmd",
+          "-U",
+          "sa",
+          "-P",
+          "${SA_PASSWORD}",
+          "-Q",
+          "select 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  hashicorp-consul:
+    container_name: hashicorp-consul
+    image: hashicorp/consul:latest
+    ports:
+      - 8500:8500
+    networks:
+      - nurtricenter-net
+
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3.13.7-management
+    ports:
+      - "5672:5672" # Puerto AMQP
+      - "15672:15672" # UI de gestión
+    volumes:
+      - ./.rabbitmq/definitions.json:/etc/rabbitmq/definitions.json
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: '-rabbitmq_management load_definitions "/etc/rabbitmq/definitions.json"'
+    networks:
+      - nurtricenter-net
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    user: "rabbitmq:rabbitmq"
+
+  catering:
+    container_name: catering
+    image: eko1394/catering:1.0.0
+    ports:
+      - 8081:8080
+    depends_on:
+      - catering-db
+      - rabbitmq
+    networks:
+      - nurtricenter-net
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/swagger"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  catering-db:
+    container_name: catering-db
+    image: eko1394/catering-db:1.0.0
+    ports:
+      - 1433:1433
+    volumes:
+      - catering-db-data:/var/opt/mssql
+    networks:
+      - nurtricenter-net
+    restart: on-failure
+    environment:
+      SA_PASSWORD: "${SA_PASSWORD}"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/opt/mssql-tools/bin/sqlcmd",
+          "-U",
+          "sa",
+          "-P",
+          "${SA_PASSWORD}",
+          "-Q",
+          "select 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  catering-worker:
+    container_name: catering-worker
+    image: eko1394/catering-worker:1.0.0
+    depends_on:
+      - catering-db
+    networks:
+      - nurtricenter-net
+    restart: on-failure
+
+  commercial-api:
+    container_name: commercial-api
+    image: yh03lhz/nurjhz:latest
+    volumes:
+      - commercial_vendor:/var/www/html/vendor
+      - ./.commercial/process-events.sh:/usr/local/bin/process-events.sh
+      - ./.commercial/post_deploy.sh:/usr/local/bin/post_deploy.sh
+    entrypoint: >
+      /bin/bash -c "
+        chmod +x /usr/local/bin/post_deploy.sh &&
+        chmod +x /usr/local/bin/process-events.sh &&
+        /usr/local/bin/post_deploy.sh
+      "
+    ports:
+      - 9092:80
+    networks:
+      - nurtricenter-net
+    depends_on:
+      commercial-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: commercial-db
+      DB_PORT: 5432
+      DB_DATABASE: commercial
+      DB_USERNAME: commercial
+      DB_PASSWORD: commercial123
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin
+      RABBITMQ_VHOST: /
+      APP_ENV: local
+      APP_DEBUG: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/commercial/catalogs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  commercial-db:
+    container_name: commercial-db
+    image: postgres:17
+    ports:
+      - 5435:5432
+    volumes:
+      - commercial_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: commercial
+      POSTGRES_PASSWORD: commercial123
+      POSTGRES_DB: commercial
+    networks:
+      - nurtricenter-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commercial"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  catering-db-data:
+  identity-db-data:
+  commercial_vendor:
+  commercial_db_data:
+  rabbitmq_data:
+
+networks:
+  nurtricenter-net:
+    name: nurtricenter-net
+    driver: bridge
