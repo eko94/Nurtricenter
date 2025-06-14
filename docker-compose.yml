@@ -154,8 +154,8 @@ services:
     image: yh03lhz/nurjhz:latest
     volumes:
       - commercial_vendor:/var/www/html/vendor
-      - ./.commercial/process-events.sh:/usr/local/bin/process-events.sh
-      - ./.commercial/post_deploy.sh:/usr/local/bin/post_deploy.sh
+      - ./.commercial/process-events-fixed.sh:/usr/local/bin/process-events.sh
+      - ./.commercial/post_deploy_fixed.sh:/usr/local/bin/post_deploy.sh
     entrypoint: >
       /bin/bash -c "
         chmod +x /usr/local/bin/post_deploy.sh &&
