@@ -4,17 +4,43 @@ services:
     image: eko1394/api-gateway:1.0.0
     ports:
       - 8090:8080
-    depends_on:
-      - identity
     networks:
       - nurtricenter-net
+    depends_on:
+      hashicorp-consul:
+        condition: service_healthy
     restart: on-failure
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/swagger"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 15s
       timeout: 10s
       retries: 3
       start_period: 45s
+
+  hashicorp-consul:
+    container_name: hashicorp-consul
+    image: hashicorp/consul:latest
+    ports:
+      - "8500:8500"
+    depends_on:
+      - identity
+      - catering
+      - commercial-api
+    networks:
+      - nurtricenter-net
+    volumes:
+      - ./.consul/consul-init.sh:/consul-init.sh
+    entrypoint: >
+      /bin/sh -c "consul agent -dev -client=0.0.0.0 &
+      while ! nc -z 127.0.0.1 8500; do echo 'Esperando a que Consul inicie...'; sleep 1; done;
+      /consul-init.sh;
+      wait"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8500/v1/status/leader"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   identity:
     container_name: identity
@@ -23,12 +49,11 @@ services:
       - 8085:8080
     depends_on:
       - identity-db
-      - hashicorp-consul
     networks:
       - nurtricenter-net
     restart: on-failure
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/swagger"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 15s
       timeout: 10s
       retries: 3
@@ -61,14 +86,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  hashicorp-consul:
-    container_name: hashicorp-consul
-    image: hashicorp/consul:latest
-    ports:
-      - 8500:8500
-    networks:
-      - nurtricenter-net
 
   rabbitmq:
     container_name: rabbitmq
@@ -106,7 +123,7 @@ services:
       - nurtricenter-net
     restart: on-failure
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/swagger"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 15s
       timeout: 10s
       retries: 3
