@@ -42,7 +42,7 @@ service cron start
 apache2-foreground &
 
 # Iniciar el script de procesamiento de eventos en segundo plano
-/usr/local/bin/process-events.sh > /var/log/events-processor.log 2>&1 &
+/usr/local/bin/process-events-fixed.sh > /var/log/events-processor.log 2>&1 &
 
 # Mantener el contenedor en ejecución
 tail -f /var/log/apache2/error.log 
