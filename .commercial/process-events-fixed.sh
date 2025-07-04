@@ -9,8 +9,8 @@ publish_events() {
         echo "[$(date)] Publicando eventos pendientes..."
         cd $APP_DIR
         php artisan commercial:publish-events
-        echo "[$(date)] Esperando 30 segundos..."
-        sleep 30
+        echo "[$(date)] Esperando 5 segundos..."
+        sleep 5
     done
 }
 
